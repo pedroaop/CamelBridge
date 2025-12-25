@@ -1,0 +1,105 @@
+# ============================================================================
+# Rota de Sincronização de Usuários
+# ============================================================================
+# Esta rota sincroniza usuários do banco de dados Firebird para uma API externa.
+# 
+# Fluxo da rota:
+# 1. Cron executa conforme expressão configurada em application.properties (cronExpression)
+# 2. Define o cabeçalho com a data da última sincronização (1 hora atrás)
+# 3. Consulta usuários modificados desde a última sincronização no banco
+# 4. Divide os resultados em registros individuais
+# 5. Converte cada registro para JSON
+# 6. Envia cada usuário para a API externa via POST
+#
+# Padrões EIP Utilizados:
+# - Message Endpoint (from): Ponto de entrada da rota
+# - Message Translator (set-header): Modifica cabeçalhos da mensagem
+# - Content Enricher (to sql): Busca dados do banco de dados
+# - Splitter (split): Divide uma mensagem (lista) em múltiplas mensagens
+# - Message Translator (marshal): Converte formato de dados (Objeto -> JSON)
+# - Messaging Gateway (to http): Invoca serviço externo via HTTP
+# ============================================================================
+
+- from:
+    # PADRÃO EIP: Message Endpoint
+    # Descrição: Define o ponto de entrada da rota (Consumer Endpoint)
+    # O componente 'cron' atua como um Message Endpoint que recebe eventos do scheduler
+    # Cron que executa a rota conforme expressão configurada globalmente
+    # A expressão cron está definida em application.properties (cronExpression)
+    uri: "cron:sincronizar-usuarios?schedule={{cronExpression}}"
+    steps:
+      # Log de início da execução da rota
+      - log: "Iniciando sincronização de usuários"
+      
+      # PADRÃO EIP: Message Translator
+      # Descrição: Transforma/adapta a mensagem adicionando metadados (cabeçalho)
+      # O set-header enriquece a mensagem com informações de controle (data da última busca)
+      # Define o cabeçalho ULTIMA_SINCRONIZACAO com a data/hora conforme lastSearch configurado
+      # O tempo de lastSearch está definido globalmente em application.properties (lastSearch)
+      # Este valor será usado na consulta SQL para buscar apenas usuários modificados após a última busca
+      - set-header:
+          name: ULTIMA_SINCRONIZACAO
+          simple: "{{lastSearch}}"
+      
+      # Log da data de última sincronização
+      - log: "Buscando usuários modificados após: ${header.ULTIMA_SINCRONIZACAO}"
+      
+      # PADRÃO EIP: Content Enricher / Poll Enrich
+      # Descrição: Enriquece a mensagem com dados de uma fonte externa (banco de dados)
+      # O componente 'sql' busca dados externos e os adiciona ao corpo da mensagem
+      # Executa consulta SQL no banco de dados Firebird
+      # Busca usuários modificados após a última sincronização
+      # Utiliza o DataSource configurado em AppConfiguration (#dataSource)
+      - to:
+          uri: "sql:SELECT USUARIOS_ID, FUNCIONARIOS_ID, USUARIO_LOGIN, USUARIO_SENHA, PERFIS_ID, USUARIO_INATIVO FROM USUARIOS WHERE MODIFICADO > :#ULTIMA_SINCRONIZACAO?dataSource=#dataSource"
+      
+      # Log da quantidade de registros encontrados
+      - log: "Registros encontrados: ${body.size()} usuário(s)"
+      
+      # PADRÃO EIP: Splitter
+      # Descrição: Divide uma mensagem composta (lista de usuários) em múltiplas mensagens individuais
+      # Cada registro do resultado SQL será processado separadamente em paralelo
+      # Divide o resultado da consulta em registros individuais
+      # Cada linha retornada do banco será processada separadamente
+      - split:
+          expression:
+            simple: "${body}"
+          steps:
+            # Log antes de processar o registro
+            - log: "Processando usuário: ${body}"
+            
+            # PADRÃO EIP: Message Translator
+            # Descrição: Transforma o formato da mensagem de objeto Java (Map/List) para JSON
+            # O marshal converte o formato interno da mensagem para um formato de serialização externa
+            # Converte o registro do banco (Map/List) para formato JSON
+            # Usa a biblioteca Jackson para serialização
+            - marshal:
+                json:
+                  library: Jackson
+            
+            # Log do JSON gerado
+            - log: "JSON gerado: ${body}"
+            
+            # PADRÃO EIP: Message Translator
+            # Descrição: Adapta a mensagem adicionando metadados HTTP necessários para o protocolo
+            # O set-header modifica os cabeçalhos HTTP para que o serviço externo entenda o formato
+            # Define o cabeçalho HTTP Content-Type como application/json
+            # Necessário para a API externa processar corretamente o payload
+            - set-header:
+                name: Content-Type
+                simple: "application/json"
+            
+            # Log antes de enviar para a API
+            - log: "Enviando usuário para API: https://rbaskets.in/usuarios"
+            
+            # PADRÃO EIP: Messaging Gateway / Service Activator
+            # Descrição: Invoca um serviço externo de forma transparente, encapsulando detalhes de protocolo HTTP
+            # O componente 'http' atua como um gateway que traduz a mensagem interna para uma chamada HTTP externa
+            # Envia o usuário (em JSON) para a API externa via HTTP POST
+            # URL corrigida: https://rbaskets.in/usuarios (removido /web)
+            - to:
+                uri: "https://rbaskets.in/usuarios?httpMethod=POST"
+            
+            # Log após envio bem-sucedido
+            - log: "Usuário enviado com sucesso. Status HTTP: ${header.CamelHttpResponseCode}"
+
