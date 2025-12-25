@@ -10,7 +10,7 @@
   <url>https://github.com/ORIGINAL_OWNER/CamelBridge</url>
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <log4j2-version>2.13.3</log4j2-version>
+    <log4j2-version>2.23.1</log4j2-version>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
   </properties>
   <dependencyManagement>
@@ -55,6 +55,12 @@
       <artifactId>log4j-slf4j-impl</artifactId>
       <version>${log4j2-version}</version>
       <scope>runtime</scope>
+    </dependency>
+    <!-- Log4j2 Core - necessário para criar appenders customizados -->
+    <dependency>
+      <groupId>org.apache.logging.log4j</groupId>
+      <artifactId>log4j-core</artifactId>
+      <version>${log4j2-version}</version>
     </dependency>
     <dependency>
       <groupId>org.apache.camel</groupId>

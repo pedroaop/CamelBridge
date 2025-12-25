@@ -7,6 +7,7 @@ Sistema de sincronização de dados desenvolvido com Apache Camel que sincroniza
 - [Descrição](#descrição)
 - [Pré-requisitos](#pré-requisitos)
 - [Configuração](#configuração)
+- [Interface Gráfica](#interface-gráfica)
 - [Estrutura do Projeto](#estrutura-do-projeto)
 - [Criando Rotas YAML](#criando-rotas-yaml)
 - [Padrões e Exemplos](#padrões-e-exemplos)
@@ -34,6 +35,8 @@ Sistema de sincronização de dados desenvolvido com Apache Camel que sincroniza
 
 O CamelBridge permite sincronizar dados entre sistemas heterogêneos de forma declarativa usando arquivos YAML. As rotas são definidas na pasta `routes/` e são carregadas automaticamente pela aplicação.
 
+O sistema inclui uma **interface gráfica desktop** desenvolvida com Swing que permite visualizar logs em tempo real, monitorar o status da sincronização e gerenciar a aplicação de forma intuitiva.
+
 ## 🔧 Pré-requisitos
 
 - Java 17 ou superior
@@ -45,7 +48,43 @@ O CamelBridge permite sincronizar dados entre sistemas heterogêneos de forma de
 1. Clone o repositório
 2. Configure as propriedades do banco de dados em `src/main/resources/application.properties`
 3. Compile o projeto: `mvn clean install`
-4. Execute: `mvn camel:run`
+4. Execute: `mvn camel:run` (ou execute o JAR diretamente)
+
+## 🖥️ Interface Gráfica
+
+O CamelBridge possui uma interface gráfica desktop desenvolvida com Swing que oferece uma experiência visual para monitorar e gerenciar a aplicação.
+
+### Características
+
+- **Visualização de Logs em Tempo Real**: Área de logs estilo terminal com cores por nível (ERROR, WARN, INFO, DEBUG)
+- **Barra de Status**: Exibe a data da última sincronização (`lastSearch`), status da aplicação e contador de logs
+- **Menus Funcionais**:
+  - **Arquivo → Limpar Logs** (Ctrl+L): Limpa a área de visualização de logs
+  - **Arquivo → Sair** (Ctrl+Q): Encerra a aplicação com confirmação
+  - **Sobre**: Exibe informações sobre a aplicação
+- **Scroll Automático**: A área de logs rola automaticamente para a última linha
+- **Thread Safety**: GUI e Camel executam em threads separadas, garantindo responsividade
+
+### Dimensões
+
+- **Tamanho**: 800x600 pixels
+- **Tamanho Mínimo**: 600x400 pixels
+- **Redimensionável**: Sim
+
+### Cores dos Logs
+
+- **ERROR**: Vermelho (#FF6B6B)
+- **WARN/WARNING**: Amarelo (#FFD93D)
+- **INFO**: Verde (#6BCF7F)
+- **DEBUG**: Cinza (#95A5A6)
+
+### Como Usar
+
+Ao executar a aplicação, a interface gráfica será exibida automaticamente. Todos os logs do Camel e da aplicação serão capturados e exibidos em tempo real na área de logs.
+
+**Atalhos de Teclado:**
+- `Ctrl+L`: Limpar logs
+- `Ctrl+Q`: Sair da aplicação
 
 ## 📁 Estrutura do Projeto
 
@@ -55,8 +94,16 @@ CamelBridge/
 │   └── usuarios.yaml         # Exemplo de rota de sincronização
 ├── src/main/java/
 │   └── br/eagletecnologia/CamelBridge/
-│       ├── Main.java         # Classe principal
-│       └── AppConfiguration.java  # Configuração de beans (DataSource)
+│       ├── Main.java         # Classe principal (inicia GUI e Camel)
+│       ├── AppConfiguration.java  # Configuração de beans (DataSource)
+│       ├── gui/              # Componentes da interface gráfica
+│       │   ├── LogMessage.java      # Modelo de mensagem de log
+│       │   ├── LogAppender.java     # Appender customizado do Log4j2
+│       │   ├── LogViewerPanel.java  # Painel de visualização de logs
+│       │   ├── StatusBar.java       # Barra de status
+│       │   └── CamelBridgeFrame.java # Janela principal
+│       └── service/          # Serviços da aplicação
+│           └── ApplicationService.java  # Gerenciamento da aplicação
 ├── src/main/resources/
 │   ├── application.properties    # Propriedades da aplicação
 │   └── log4j2.properties        # Configuração de logs
@@ -605,18 +652,26 @@ Use `{{propriedade}}` para referenciar propriedades do arquivo de configuração
 
 ## 🚀 Executando a Aplicação
 
-### Desenvolvimento
+### Com Interface Gráfica (Recomendado)
 
+A interface gráfica será exibida automaticamente ao executar a aplicação.
+
+**Desenvolvimento:**
 ```bash
 mvn camel:run
 ```
 
-### Produção
-
+**Produção:**
 ```bash
 mvn clean package
 java -jar target/camelbridge-1.0.0-SNAPSHOT.jar
 ```
+
+### Sem Interface Gráfica (Modo Console)
+
+Se preferir executar apenas no console, você pode modificar o `Main.java` para usar o modo console do Camel Main diretamente.
+
+**Nota**: A interface gráfica é iniciada automaticamente. Para fechar a aplicação, use o menu **Arquivo → Sair** ou feche a janela.
 
 ## 📖 Exemplo Completo de Rota
 
@@ -666,12 +721,37 @@ java -jar target/camelbridge-1.0.0-SNAPSHOT.jar
             - log: "Usuário enviado com sucesso. Status HTTP: ${header.CamelHttpResponseCode}"
 ```
 
+## 🔧 Detalhes Técnicos da Interface Gráfica
+
+### Arquitetura
+
+A interface gráfica utiliza:
+
+- **Swing**: Framework GUI nativo do Java (sem dependências adicionais)
+- **Log4j2 Custom Appender**: Appender personalizado que captura logs e os envia para a GUI
+- **Thread Safety**: GUI executa na Event Dispatch Thread (EDT), enquanto o Camel executa em thread separada
+- **Look & Feel do Sistema**: Interface se adapta ao tema do sistema operacional
+
+### Componentes Principais
+
+1. **LogAppender**: Appender customizado do Log4j2 que intercepta todos os logs e os envia para a GUI
+2. **LogViewerPanel**: Componente Swing que exibe logs em estilo terminal com cores
+3. **StatusBar**: Barra de status que mostra informações da aplicação
+4. **CamelBridgeFrame**: Janela principal que gerencia todos os componentes
+5. **ApplicationService**: Serviço que gerencia a aplicação e lê configurações
+
+### Captura de Logs
+
+Os logs são capturados através de um appender customizado do Log4j2 registrado programaticamente. Isso garante que todos os logs do Camel e da aplicação sejam exibidos na interface gráfica em tempo real.
+
 ## 🔗 Referências
 
 - [Apache Camel Documentation](https://camel.apache.org/manual/)
 - [Camel YAML DSL](https://camel.apache.org/manual/yaml-dsl.html)
 - [Enterprise Integration Patterns](https://www.enterpriseintegrationpatterns.com/)
 - [Camel Components](https://camel.apache.org/components/)
+- [Swing Tutorial (Oracle)](https://docs.oracle.com/javase/tutorial/uiswing/)
+- [Log4j2 Custom Appender](https://logging.apache.org/log4j/2.x/manual/extending.html)
 
 ## 📄 Licença
 
